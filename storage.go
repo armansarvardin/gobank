@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
+
 	_ "github.com/lib/pq"
 )
 
@@ -9,6 +11,7 @@ type Storage interface {
 	CreateAccount(*Account) error
 	DeleteAccount(int) error
 	UpdateAccount(*Account) error
+	GetAccounts() ([]*Account, error)
 	GetAccountByID(int) (*Account, error)
 }
 
@@ -38,7 +41,7 @@ func (s *PostgressStore) Init() error {
 }
 
 func (s *PostgressStore) createAccountTable() error {
-	query := `create table account if not exists (
+	query := `create table if not exists account (
 		id serial primary key,
 		first_name varchar(50),
 		last_name varchar(50),
@@ -51,7 +54,27 @@ func (s *PostgressStore) createAccountTable() error {
 	return err
 }
 
-func (s *PostgressStore) CreateAccount(*Account) error {
+func (s *PostgressStore) CreateAccount(account *Account) error {
+	query := `
+	INSERT INTO account 
+	(first_name, last_name, number, balance, created_at)
+	values ($1, $2, $3, $4, $5)
+	`
+	resp, err := s.db.Query(
+		query,
+		account.FirstName, 
+		account.LastName,
+		account.Number,
+		account.Balance,
+		account.CreatedAt,
+	)
+
+	if err != nil {
+		return err
+	}
+	
+	fmt.Printf("\n Created account with: %+v", resp)
+
 	return nil
 }
 
@@ -65,4 +88,34 @@ func (s *PostgressStore) DeleteAccount(id int) error {
 
 func (s *PostgressStore) GetAccountByID(id int) (*Account, error) {
 	return nil, nil
+}
+
+func (s *PostgressStore) GetAccounts() ([]*Account, error) {
+	rows, err := s.db.Query(`SELECT * FROM account`)
+
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := []*Account {}
+	for rows.Next() {
+		
+		account := new(Account)
+
+		err := rows.Scan(
+			&account.ID,
+			&account.FirstName,
+			&account.LastName,
+			&account.Number, 
+			&account.Balance,
+			&account.CreatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, account)
+	}
+	return accounts, nil
 }
